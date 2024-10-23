@@ -1,5 +1,15 @@
 package main
 
+// Import beberapa package yang diperlukan:
+// "bufio" untuk input/output buffered,
+// "encoding/json" untuk encoding dan decoding JSON,
+// "fmt" untuk output teks,
+// "log" untuk logging error,
+// "os" untuk operasi sistem file,
+// "strconv" untuk konversi string ke tipe lain,
+// "sync" untuk penggunaan mutex (penguncian),
+// "time" untuk penanganan waktu.
+
 import (
 	"bufio"
 	"encoding/json"
@@ -11,54 +21,61 @@ import (
 	"time"
 )
 
+// Definisi struct untuk Account yang merepresentasikan akun pengguna.
 type Account struct {
-	ID           string
-	Password     string
-	Balance      float64
-	Approved     bool
-	Transactions []Transaction
+	ID           string           // ID akun
+	Password     string           // Password akun
+	Balance      float64          // Saldo akun
+	Approved     bool             // Status apakah akun disetujui
+	Transactions []Transaction    // Daftar transaksi yang terkait dengan akun
 }
 
+// Definisi struct untuk Transaction yang merepresentasikan transaksi.
 type Transaction struct {
-	ID        int
-	AccountID string
-	Type      string
-	Amount    float64
-	Date      string
-	Details   string
+	ID        int     // ID transaksi
+	AccountID string  // ID akun yang terkait dengan transaksi
+	Type      string  // Jenis transaksi (misalnya transfer atau pembayaran)
+	Amount    float64 // Jumlah transaksi
+	Date      string  // Tanggal transaksi
+	Details   string  // Rincian transaksi
 }
 
+// Definisi struct untuk Registration yang menyimpan data registrasi akun.
 type Registration struct {
-	ID       string
-	Password string
+	ID       string // ID akun untuk registrasi
+	Password string // Password akun
 }
 
+// Definisi struct untuk TopUpRequest yang merepresentasikan permintaan top-up saldo.
 type TopUpRequest struct {
-	ID        int
-	AccountID string
-	Amount    float64
-	Date      string
-	Approved  bool
+	ID        int     // ID permintaan top-up
+	AccountID string  // ID akun yang meminta top-up
+	Amount    float64 // Jumlah top-up
+	Date      string  // Tanggal permintaan
+	Approved  bool    // Status apakah permintaan disetujui
 }
 
+// Variabel global untuk menyimpan data akun, registrasi, permintaan top-up, mutex untuk sinkronisasi thread, pengguna saat ini, dan ID top-up berikutnya.
 var (
-	accounts      = make(map[string]*Account)
-	registrations = make(map[string]Registration)
-	topUpRequests = []TopUpRequest{}
-	mu            sync.Mutex
-	currentUser   *Account
-	nextTopUpID   = 1
+	accounts      = make(map[string]*Account)  // Peta untuk menyimpan data akun
+	registrations = make(map[string]Registration)  // Peta untuk menyimpan data registrasi
+	topUpRequests = []TopUpRequest{}           // Slice untuk menyimpan permintaan top-up
+	mu            sync.Mutex                   // Mutex untuk mengamankan akses ke data bersama
+	currentUser   *Account                     // Menyimpan data pengguna saat ini
+	nextTopUpID   = 1                          // ID top-up berikutnya
 )
 
-const accountsFilePath = "accounts.json"
+const accountsFilePath = "accounts.json" // Lokasi file untuk menyimpan data akun
 
+// Fungsi utama program yang memuat data akun, menyediakan pilihan login atau registrasi, dan menampilkan menu utama.
 func main() {
-	loadAccounts()
-	defer saveAccounts()
+	loadAccounts()  // Memuat data akun dari file
+	defer saveAccounts()  // Menyimpan data akun ke file saat program berakhir
 
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(os.Stdin)  // Membuat scanner untuk menerima input dari pengguna
 	fmt.Println("Welcome to the e-money system!")
 
+	// Jika file akun kosong, maka pengguna akan diminta untuk registrasi atau login sebagai admin.
 	if isEmptyAccountsFile() {
 		fmt.Println("No accounts found. Please register as admin or register a new account.")
 		for {
@@ -70,22 +87,27 @@ func main() {
 				break
 			}
 
-			option := scanner.Text()
+			option := scanner.Text()  // Membaca pilihan dari pengguna
 			switch option {
 			case "1":
+				// Memeriksa login admin dan menampilkan menu admin jika berhasil.
 				if loginadm(scanner) {
 					adminMenu(scanner)
 				}
 			case "2":
+				// Registrasi akun baru.
 				registerAccount(scanner)
 			case "3":
+				// Keluar dari program.
 				fmt.Println("Goodbye!")
 				return
 			default:
+				// Menangani input yang tidak valid.
 				fmt.Println("Invalid option. Please try again.")
 			}
 		}
 	} else {
+		// Jika akun sudah ada, pengguna dapat login sebagai user atau admin, atau registrasi akun baru.
 		fmt.Println("Choose an option:")
 		fmt.Println("1. User Login")
 		fmt.Println("2. Admin Login")
@@ -100,36 +122,43 @@ func main() {
 			option := scanner.Text()
 			switch option {
 			case "1":
+				// Login sebagai pengguna
 				if loginusr(scanner) {
 					userMenu(scanner)
 				}
 			case "2":
+				// Login sebagai admin
 				if loginadm(scanner) {
 					adminMenu(scanner)
 				}
 			case "3":
+				// Registrasi akun baru
 				registerAccount(scanner)
 			case "4":
+				// Keluar dari program
 				fmt.Println("Goodbye!")
 				return
 			default:
+				// Menangani input yang tidak valid.
 				fmt.Println("Invalid option. Please try again.")
 			}
 		}
 	}
 }
 
+// Fungsi untuk memeriksa apakah file akun kosong.
 func isEmptyAccountsFile() bool {
-	data, err := os.ReadFile(accountsFilePath)
+	data, err := os.ReadFile(accountsFilePath)  // Membaca data dari file
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Println("Failed to read accounts file:", err)
+			log.Println("Failed to read accounts file:", err)  // Menangani error jika gagal membaca file
 		}
-		return true
+		return true  // Mengembalikan true jika file tidak ditemukan atau kosong
 	}
-	return len(data) == 0
+	return len(data) == 0  // Mengembalikan true jika ukuran data adalah 0 (file kosong)
 }
 
+// Fungsi untuk registrasi akun baru.
 func registerAccount(scanner *bufio.Scanner) {
 	fmt.Print("Enter account ID: ")
 	if !scanner.Scan() {
@@ -143,20 +172,21 @@ func registerAccount(scanner *bufio.Scanner) {
 	}
 	password := scanner.Text()
 
-	mu.Lock()
+	mu.Lock()  // Mengunci mutex untuk menghindari race condition saat mengakses peta
 	defer mu.Unlock()
 
 	if _, exists := accounts[id]; exists {
 		if _, exists := registrations[id]; exists {
-			fmt.Println("Account already exists.")
+			fmt.Println("Account already exists.")  // Menangani kasus jika akun sudah ada
 			return
 		}
 	}
 
-	registrations[id] = Registration{ID: id, Password: password}
+	registrations[id] = Registration{ID: id, Password: password}  // Menambahkan registrasi baru ke peta
 	fmt.Println("Registration submitted for approval.")
 }
 
+// Fungsi login admin.
 func loginadm(scanner *bufio.Scanner) bool {
 	fmt.Print("Enter admin ID: ")
 	if !scanner.Scan() {
@@ -170,18 +200,19 @@ func loginadm(scanner *bufio.Scanner) bool {
 	}
 	password := scanner.Text()
 
-	mu.Lock()
+	mu.Lock()  // Mengunci mutex sebelum memeriksa data
 	defer mu.Unlock()
 
 	if id == "admin" && password == "admin" {
-		currentUser = &Account{ID: "admin", Password: "admin"}
+		currentUser = &Account{ID: "admin", Password: "admin"}  // Login berhasil, menetapkan currentUser sebagai admin
 		return true
 	}
 
-	fmt.Println("Invalid admin credentials.")
+	fmt.Println("Invalid admin credentials.")  // Login gagal
 	return false
 }
 
+// Fungsi login user.
 func loginusr(scanner *bufio.Scanner) bool {
 	fmt.Print("Enter account ID: ")
 	if !scanner.Scan() {
@@ -200,14 +231,15 @@ func loginusr(scanner *bufio.Scanner) bool {
 
 	account, exists := accounts[id]
 	if !exists || account.Password != password || !account.Approved {
-		fmt.Println("Invalid credentials or account not approved.")
+		fmt.Println("Invalid credentials or account not approved.")  // Menangani error login
 		return false
 	}
 
-	currentUser = account
+	currentUser = account  // Login berhasil
 	return true
 }
 
+// Fungsi untuk menampilkan menu user setelah login berhasil.
 func userMenu(scanner *bufio.Scanner) {
 	for {
 		fmt.Println("1. Check Balance")
@@ -224,17 +256,17 @@ func userMenu(scanner *bufio.Scanner) {
 		option := scanner.Text()
 		switch option {
 		case "1":
-			checkBalance()
+			checkBalance()  // Memeriksa saldo
 		case "2":
-			transferMoney(scanner)
+			transferMoney(scanner)  // Transfer uang
 		case "3":
-			makePayment(scanner)
+			makePayment(scanner)  // Membayar
 		case "4":
-			printTransactionHistory()
+			printTransactionHistory()  // Menampilkan riwayat transaksi
 		case "5":
-			topUpBalance(scanner)
+			topUpBalance(scanner)  // Top-up saldo
 		case "6":
-			currentUser = nil
+			currentUser = nil  // Logout
 			return
 		default:
 			fmt.Println("Invalid option. Please try again.")
@@ -242,6 +274,7 @@ func userMenu(scanner *bufio.Scanner) {
 	}
 }
 
+// Fungsi untuk menampilkan menu admin setelah login berhasil
 func adminMenu(scanner *bufio.Scanner) {
 	for {
 		fmt.Println("1. Approve/Reject Registration")
